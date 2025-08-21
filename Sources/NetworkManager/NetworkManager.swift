@@ -12,25 +12,38 @@ public actor NetworkManager: NetworkManagerProtocol {
     private init() {}
     
     public func sendRequestAsync<T: APIRequest>(request: T) async throws -> T.Response {
+        let urlRequest = try buildURLRequest(from: request)
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.badServerResponse
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw NetworkError.parseError(statusCode: httpResponse.statusCode, data: data)
+        }
+        
+        do {
+            let jsonResponse = try? JSONSerialization.jsonObject(with: data, options: [])
+            print("Response Data: \(String(describing: jsonResponse))")
+            let jsonDecoder = JSONDecoder()
+            if let dateDecodingStrategy = request.dateDecodingStrategy {
+                jsonDecoder.dateDecodingStrategy = dateDecodingStrategy
+            }
+            return try jsonDecoder.decode(T.Response.self, from: data)
+        } catch {
+            throw NetworkError.decodingError(error)
+        }
+    }
+    
+    private func buildURLRequest<T: APIRequest>(from request: T) throws -> URLRequest {
         var urlRequest = URLRequest(url: request.url)
         urlRequest.httpMethod = request.method.rawValue
-        for (headerField, headerValue) in request.headers {
-            urlRequest.setValue(headerValue, forHTTPHeaderField: headerField)
-        }
+        request.headers.forEach { urlRequest.setValue($1, forHTTPHeaderField: $0) }
         if request.method == .POST {
             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
             urlRequest.httpBody = request.body
         }
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
-        print("Response: \(response)")
-        if !(200...299).contains(httpResponse.statusCode) {
-            throw NetworkError.parseError(statusCode: httpResponse.statusCode, data: data)
-        }
-        let jsonResponse = try? JSONSerialization.jsonObject(with: data, options: [])
-        print("Response Data: \(String(describing: jsonResponse))")
-        return try JSONDecoder().decode(T.Response.self, from: data)
+        return urlRequest
     }
 }

@@ -13,6 +13,13 @@ public protocol APIRequest: Sendable {
     var body: Data? { get }
     var method: HTTPMethod { get }
     var headers: [String: String] { get }
+    var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy? { get }
+}
+
+public extension APIRequest {
+    var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy? {
+        return nil
+    }
 }
 
 public protocol APIResponse: Decodable, Sendable {}

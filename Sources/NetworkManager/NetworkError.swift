@@ -13,6 +13,7 @@ public enum NetworkError: Error {
     case unauthorized
     case badServerResponse
     case internalServerError
+    case decodingError(Error)
     case custom(code: Int, message: String)
     
     static func parseError(
